@@ -42,7 +42,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
     if (event.type === 'payment_intent.succeeded' || event.type === 'payment_intent.payment_failed') {
         const paymentIntent = event.data.object;
         const status = event.type === 'payment_intent.succeeded' ? 'completed' : 'failed';
-        
+
         try {
             await Tour.findOneAndUpdate(
                 { paymentIntentId: paymentIntent.id },
@@ -75,14 +75,14 @@ app.use(express.json({ limit: '100kb' }));
 // Middleware
 app.use(cookieParser())
 
-const allowedOrigins = process.env.CORS_ORIGINS 
-    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()) 
+const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
     : [process.env.FRONTEND_URL];
 
-app.use(cors({ 
-    exposedHeaders: ['Content-Length', 'Authorization', 'token'], 
-    origin: allowedOrigins, 
-    credentials: true 
+app.use(cors({
+    exposedHeaders: ['Content-Length', 'Authorization', 'token'],
+    origin: allowedOrigins,
+    credentials: true
 }));
 
 // Connect to database
@@ -104,9 +104,16 @@ app.use('/api/seller', sellerRoutes);
 app.use(passport.initialize());
 
 app.get('/api/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok', 
-        db: mongoose.connection.readyState 
+    res.status(200).json({
+        status: 'ok',
+        db: mongoose.connection.readyState
+    });
+});
+
+app.get('/api/testing', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        message: 'testing success'
     });
 });
 
@@ -114,22 +121,22 @@ const { upload, uploadMultipleToCloudinary } = require('./utils/fileUpload');
 const verifyToken = require('./middlewares/verifyToken');
 
 app.post('/api/upload', verifyToken, upload.array('files', 10), async (req, res) => {
-  if (req.user.role !== 'seller' && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Not authorized to upload files' });
-  }
+    if (req.user.role !== 'seller' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized to upload files' });
+    }
 
-  if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ error: 'No files uploaded' });
-  }
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+    }
 
-  try {
-    const uploadedUrls = await uploadMultipleToCloudinary(req.files);
-    const uploadedImageUrls = uploadedUrls.map(url => ({ imageUrl: url }));
-    res.status(200).json(uploadedImageUrls);
-  } catch (err) {
-    console.error('Error processing files:', err);
-    res.status(500).json({ error: 'Failed to process uploaded files' });
-  }
+    try {
+        const uploadedUrls = await uploadMultipleToCloudinary(req.files);
+        const uploadedImageUrls = uploadedUrls.map(url => ({ imageUrl: url }));
+        res.status(200).json(uploadedImageUrls);
+    } catch (err) {
+        console.error('Error processing files:', err);
+        res.status(500).json({ error: 'Failed to process uploaded files' });
+    }
 });
 
 const setupSwagger = require('./config/swagger');
