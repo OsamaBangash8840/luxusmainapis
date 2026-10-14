@@ -38,6 +38,8 @@
     "winston": "^3.19.0"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
