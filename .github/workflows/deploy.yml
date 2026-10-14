@@ -18,9 +18,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Use npm 11 (match local lockfile format)
-        run: npm install -g npm@11
-
       - name: Install Dependencies
         run: npm ci
 
@@ -48,19 +45,20 @@ jobs:
             # Load environment PATH so PM2 & Node are available
             export PATH=$PATH:/usr/bin:/usr/local/bin
 
-            echo "ðŸš€ Navigating to project directory..."
+            echo "🚀 Navigating to project directory..."
             cd /var/www/backend
 
-            echo "ðŸ“¥ Pulling latest changes from GitHub..."
+            echo "📥 Discarding any server drift and pulling latest code..."
+            git reset --hard HEAD
             git pull origin main
 
-            echo "ðŸ“¦ Installing any new dependencies..."
+            echo "📦 Installing production dependencies..."
             npm install --production
 
-            echo "ðŸ”„ Restarting backend with PM2..."
+            echo "🔄 Restarting backend with PM2..."
             pm2 restart luxus-backend
 
-            echo "ðŸ’¾ Saving PM2 process list..."
+            echo "💾 Saving PM2 process list..."
             pm2 save
 
-            echo "âœ… Deployment completed successfully!"
+            echo "✅ Deployment completed successfully!"
