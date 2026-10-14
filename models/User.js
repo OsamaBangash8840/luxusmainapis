@@ -40,6 +40,7 @@ const regSchema = new mongoose.Schema({
     },
     resetPasswordToken: { type: String, select: false },
     resetPasswordExpires: Date,
+    passwordChangedAt: Date,
     lastActive: Date,
     authMethod: {
         type: String,

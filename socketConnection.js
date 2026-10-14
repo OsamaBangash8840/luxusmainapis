@@ -346,31 +346,67 @@ function handleRespondToOffer(socket) {
                 return;
             }
 
-            // Update offer status
-            if (!message.offerDetails) {
-                message.offerDetails = {};
-            }
-            message.offerDetails.status = status;
-            if (notes) message.offerDetails.notes = notes;
-            await message.save();
-
-            // If offer is accepted, update property status
+            // ATOMIC OFFER RESOLUTION: Ensure two offers cannot both win
             if (status === 'accepted') {
-                await Property.findByIdAndUpdate(conversation.propertyId, {
-                    propertyStatus: 'under offer'
-                });
+                // 1. Atomically lock the property to 'under offer' ONLY IF it is currently 'for sale'
+                const lockedProperty = await Property.findOneAndUpdate(
+                    {
+                        _id: conversation.propertyId,
+                        propertyStatus: 'for sale'
+                    },
+                    {
+                        $set: { propertyStatus: 'under offer' }
+                    },
+                    { new: true }
+                );
 
-                // Reject other open offers for this property
+                if (!lockedProperty) {
+                    socket.emit('error', { message: 'Cannot accept offer: Property is already under offer with another buyer or no longer available' });
+                    return;
+                }
+
+                // 2. Atomically update this offer status to 'accepted' ONLY IF it is still pending or countered
+                const updatedOffer = await Message.findOneAndUpdate(
+                    {
+                        _id: messageId,
+                        isOffer: true,
+                        'offerDetails.status': { $in: ['pending', 'countered'] }
+                    },
+                    {
+                        $set: {
+                            'offerDetails.status': 'accepted',
+                            ...(notes && { 'offerDetails.notes': notes })
+                        }
+                    },
+                    { new: true }
+                );
+
+                if (!updatedOffer) {
+                    // Rollback property status if offer was already resolved by another action
+                    await Property.findByIdAndUpdate(conversation.propertyId, { propertyStatus: 'for sale' });
+                    socket.emit('error', { message: 'Offer is no longer pending or has already been resolved' });
+                    return;
+                }
+
+                // 3. Atomically reject all other open offers for this property across all conversations
                 const otherConvos = await Conversation.find({ propertyId: conversation.propertyId, _id: { $ne: conversation._id } });
                 for (const c of otherConvos) {
-                    const pendingOffer = await Message.findOne({ conversationId: c._id, isOffer: true, 'offerDetails.status': 'pending' });
-                    if (pendingOffer) {
-                        pendingOffer.offerDetails.status = 'rejected';
-                        pendingOffer.offerDetails.notes = 'Property is under offer with another buyer';
-                        await pendingOffer.save();
-                        await createNotification(c.buyerId, { type: 'offer', content: 'Your offer was rejected because the property is under offer.', relatedId: pendingOffer._id });
+                    const pendingOffers = await Message.find({ conversationId: c._id, isOffer: true, 'offerDetails.status': 'pending' });
+                    for (const po of pendingOffers) {
+                        po.offerDetails.status = 'rejected';
+                        po.offerDetails.notes = 'Property is under offer with another buyer';
+                        await po.save();
+                        await createNotification(c.buyerId, { type: 'offer', content: 'Your offer was rejected because the property is under offer with another buyer.', relatedId: po._id });
                     }
                 }
+            } else {
+                // For rejections or counter-offers
+                if (!message.offerDetails) {
+                    message.offerDetails = {};
+                }
+                message.offerDetails.status = status;
+                if (notes) message.offerDetails.notes = notes;
+                await message.save();
             }
 
             // Notify the room about the offer update

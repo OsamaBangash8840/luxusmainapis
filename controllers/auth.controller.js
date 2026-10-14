@@ -289,6 +289,7 @@ module.exports.ResetPass = asyncHandler(async (req, res) => {
     user.password = await bcrypt.hash(password, 10);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    user.passwordChangedAt = new Date();
     await user.save();
 
     // Revoke all refresh tokens
@@ -317,18 +318,29 @@ module.exports.refreshToken = asyncHandler(async (req, res) => {
         throw new ApiError(STATUS_CODES.UNAUTHORIZED, 'Cannot identify user for refresh');
     }
 
+    // Find all valid (unexpired) refresh tokens for this user
     const tokens = await RefreshToken.find({ userId }).where('expiresAt').gt(new Date());
-    let validTokenDoc = null;
+    let matchedToken = null;
+
     for (const t of tokens) {
         const isMatch = await bcrypt.compare(refreshToken, t.tokenHash);
         if (isMatch) {
-            validTokenDoc = t;
+            matchedToken = t;
             break;
         }
     }
 
-    if (!validTokenDoc) {
+    if (!matchedToken) {
         throw new ApiError(STATUS_CODES.UNAUTHORIZED, 'Invalid or expired refresh token');
+    }
+
+    // REUSE DETECTION: If this token was already rotated/revoked, an attacker is replaying it!
+    if (matchedToken.isRevoked) {
+        logger.warn('SECURITY ALERT: Refresh token reuse detected! Revoking all sessions for user', { userId });
+        await RefreshToken.deleteMany({ userId });
+        res.clearCookie('token');
+        res.clearCookie('refreshToken');
+        throw new ApiError(STATUS_CODES.UNAUTHORIZED, 'Security Alert: Refresh token reuse detected. All active sessions have been terminated.');
     }
 
     const user = await User.findById(userId);
@@ -336,8 +348,11 @@ module.exports.refreshToken = asyncHandler(async (req, res) => {
         throw new ApiError(STATUS_CODES.FORBIDDEN, 'User banned or deleted');
     }
 
-    await RefreshToken.findByIdAndDelete(validTokenDoc._id);
+    // Invalidate current token by marking it revoked
+    matchedToken.isRevoked = true;
+    await matchedToken.save();
     
+    // Issue rotated token pair
     const newAccessToken = generateAuthToken(user);
     const newRefreshToken = generateRefreshToken(user);
     
@@ -346,7 +361,8 @@ module.exports.refreshToken = asyncHandler(async (req, res) => {
     await RefreshToken.create({
         userId: user._id,
         tokenHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        isRevoked: false
     });
 
     setAuthCookie(res, newAccessToken, newRefreshToken);
