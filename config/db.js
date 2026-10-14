@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
 const connectDB = async (retries = 5, delay = 5000) => {
+  if (process.env.NODE_ENV === 'test') return;
   while (retries > 0) {
     try {
       mongoose.set('sanitizeFilter', true);

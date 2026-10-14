@@ -85,8 +85,10 @@ app.use(cors({
     credentials: true
 }));
 
-// Connect to database
-connectDB();
+// Connect to database (tests use in-memory mongo from tests/setup.js)
+if (process.env.NODE_ENV !== 'test') {
+    connectDB();
+}
 
 
 // Routes
