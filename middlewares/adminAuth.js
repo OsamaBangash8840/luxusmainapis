@@ -3,8 +3,8 @@ const jwt = require('jsonwebtoken');
 
 module.exports.adminAuth = async (req, res, next) => {
     try {
-        const token = req.cookies.token;
-        if (!token) res.status(403).send("Access Denied")
+        const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+        if (!token) return res.status(403).send("Access Denied");
         // console.log(token)
 
         const verifiedAdmin = jwt.verify(token, process.env.TOKEN_SECRET)

@@ -11,10 +11,12 @@ const userSocketMap = {};
 let io;
 
 function initializeSocket(server) {
+    const allowedOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()) : [process.env.FRONTEND_URL || 'http://localhost:3000'];
     io = new Server(server, {
         cors: {
-            origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-            methods: ['GET', 'POST']
+            origin: allowedOrigins,
+            methods: ['GET', 'POST'],
+            credentials: true
         },
         pingTimeout: 60000, // Increase ping timeout for better reliability
     });

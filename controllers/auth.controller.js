@@ -59,11 +59,13 @@ module.exports.login = asyncHandler(async (req, res) => {
     setAuthCookie(res, token, refreshToken);
     res.json(
         new ApiResponse(STATUS_CODES.OK, {
+            token,
             user: {
                 id: user._id,
                 username: user.username,
                 email: user.email,
                 role: user.role,
+                token,
             }
         }, MESSAGES.AUTH.LOGIN_SUCCESS)
     );

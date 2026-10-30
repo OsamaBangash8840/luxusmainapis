@@ -81,20 +81,20 @@ const isPasswordMatch = async (password, userpassword) => {
 }
 
 const setAuthCookie = (res, token, refreshToken = null) => {
-    // 15m token lifetime
-    const maxAge = 15 * 60 * 1000; 
+    const maxAge = 15 * 60 * 1000;
+    const isSecure = process.env.NODE_ENV === "production" || (process.env.FRONTEND_URL && process.env.FRONTEND_URL.startsWith("https://"));
     res.cookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: 'lax', // or 'none' if needed
+        secure: isSecure,
+        sameSite: isSecure ? 'none' : 'lax',
         maxAge: maxAge,
     });
     
     if (refreshToken) {
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: 'lax',
+            secure: isSecure,
+            sameSite: isSecure ? 'none' : 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         });
     }
